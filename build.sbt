@@ -3,7 +3,7 @@ name := "concurrency-examples"
 
 version := "1.0"
 
-scalaVersion := "2.11.1"
+scalaVersion := "2.11.7"
 // scalaVersion := "2.10.4"
 
 resolvers ++= Seq(
@@ -20,7 +20,7 @@ libraryDependencies += "org.scala-lang.modules" %% "scala-async" % "0.9.1"
 
 libraryDependencies += "com.github.scala-blitz" %% "scala-blitz" % "1.2"
 
-libraryDependencies += "com.netflix.rxjava" % "rxjava-scala" % "0.19.1"
+libraryDependencies += "com.netflix.rxjava" % "rxjava-scala" % "0.20.7"
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "1.0.1"
             
@@ -46,3 +46,5 @@ libraryDependencies += "org.scalafx" %% "scalafx" % "1.0.0-R8"
 unmanagedJars in Compile += Attributed.blank(file(scala.util.Properties.javaHome) / "/lib/jfxrt.jar")
 
 libraryDependencies += "com.storm-enroute" %% "reactive-collections" % "0.5"
+
+packAutoSettings
