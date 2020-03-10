@@ -83,3 +83,37 @@ object ch1 extends App {
   val s1 = "val ues"
   for (t <- permutations(s1)) { println(t)}
 }
+
+// [New to the second edition of the book]
+// 1.6. given a sequence of elements, produces an iterator over all possible combinations of length n.
+object ch1ex6 extends App {
+
+  def combinationsIter(xs: List[Int], n: Int, beg: Int, left: Int): Iterator[Seq[Int]] = {
+    if (left == 0)
+      Seq(Seq[Int]()).iterator // A successful hit
+    else if (beg == xs.length)
+      Seq().iterator // arriving at end of xs without collecting the required number of elements.
+    else {
+      // The idea of loop over beg until xs.length is incorrect.
+      val la = for {
+        q <- combinationsIter(xs, n, beg+1, left-1)
+      } yield xs(beg) +: q
+      val lb = for {
+        q <- combinationsIter(xs, n, beg+1, left)
+      } yield q
+      val lc = la ++ lb // concatenating two Iterators
+      lc
+    }
+  }
+
+  def combinations(n: Int, xs: Seq[Int]): Iterator[Seq[Int]] = {
+    // We desire indexed access; so to convert to List first.
+    combinationsIter(xs.toList, n, 0, n)
+  }
+
+  for {
+    s <- combinations(2, Seq(1,2,3,4))
+  } {
+    println(s)
+  }
+}
