@@ -588,3 +588,33 @@ object ch2ex11to13 extends App {
   p.join()
   println("After concurrent put() and replace(), ConcurrentBiMap now contain " + m.size + " records.")
 }
+
+
+object ch2ex14 extends App {
+  class FunCallMemoizer[K,V] {
+    private val mem = new mutable.HashMap[(K => V, K), V]()
+    def cache(f: K => V): K => V = (k => {
+      val key = (f, k)
+      val op = mem.get(key)
+      if (op.isEmpty) {
+        val v = f(k)
+        mem.put(key, v)
+        println(s"Memoizing a value pair ($k, $v) ...")
+        v
+      } else {
+        val v = op.get
+        println(s"Returning a previously memoized value pair ($k, $v) ...")
+        v
+      }
+    })
+  }
+  val p = new ch2ex9and10.PriorityTaskPoolWithMultipleThreads(4, -1)
+  val m = new FunCallMemoizer[Int, String]()
+  val intToStr = m.cache(i => s"""<Int $i>""")
+  for (
+    i <- 0 until 5; j <- 0 until 4
+  ) {
+    p.asynchronous(i)(() => intToStr(i))
+  }
+  p.shutdown()
+}
