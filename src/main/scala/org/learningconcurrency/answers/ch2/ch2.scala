@@ -3,8 +3,6 @@ package answers
 package ch2
 
 
-import java.lang.UnsupportedOperationException
-
 import scala.annotation.tailrec
 import scala.collection.mutable
 import org.learningconcurrency.ch2.thread
@@ -366,6 +364,7 @@ object ch2ex8 extends App {
 }
 
 object ch2ex9and10 extends App {
+
   // A multi-thread pool that executes jobs in the order based on descending importance values.
   // Upon shutdown(), no new jobs will be accepted; existing jobs
 
@@ -432,6 +431,7 @@ object ch2ex9and10 extends App {
       }
 
       this.setDaemon(false)
+      this.start()
     }
 
     def shutdown(): Unit = tasks.synchronized {
@@ -447,8 +447,14 @@ object ch2ex9and10 extends App {
       tasks.notify()
     }
 
+    def join(): Unit = {
+      for (w <- workers) {
+        w.join()
+      }
+    }
+
     // There is no reason to keep the worker list.
-    Range(0, numThreads) foreach { _ => new Worker().start() }
+    private val workers: Seq[Worker] = for (i <- 0 until numThreads) yield new Worker()
   }
 
   // The messages will appear roughly in groups of numThreads ones.
@@ -462,4 +468,123 @@ object ch2ex9and10 extends App {
     case _: UnsupportedOperationException =>
       println("An UnsupportedOperationException is thrown upon submitting new task after shutdown(), as expected.")
   }
+}
+
+object ch2ex11to13 extends App {
+  // ex 2.11 to 2.13:
+  // To Design and test a concurrent bidirectional map.
+  // Here we synchronize on this, a bit better that the previous idea of synchronizing on both to and rev maps.
+  def assertTrue(condition: Boolean, msg: String): Unit = {
+    if (!condition) {
+      throw new AssertionError(msg)
+    }
+  }
+
+  class ConcurrentBiMap[K, V] {
+    private val toMap: mutable.HashMap[K, V] = new mutable.HashMap[K, V]()
+    private val revMap: mutable.HashMap[V, K] = new mutable.HashMap[V, K]()
+
+    def put(k: K, v: V): Option[(K, V)] = {
+      println(s"Inserting ($k, $v)")
+      this.synchronized {
+        val option: Option[V] = toMap.get(k)
+        if (option.isEmpty) {
+          toMap.put(k, v)
+          revMap.put(v, k)
+        } else {
+          val v2: V = option.get
+          if (!v2.equals(v)) {
+            toMap.put(k, v)
+            revMap.remove(v2)
+            revMap.put(v, k)
+          }
+        }
+      }
+      Some(k, v)
+    }
+
+    def removeKey(k: K): Option[V] = {
+      this.synchronized {
+        val option: Option[V] = toMap.get(k)
+        if (option.isDefined) {
+          toMap.remove(k)
+          revMap.remove(option.get)
+        }
+        option
+      }
+    }
+
+    def removeValue(v: V): Option[K] = {
+      this.synchronized {
+        val option: Option[K] = revMap.get(v)
+        if (option.isDefined) {
+          revMap.remove(v)
+          toMap.remove(option.get)
+        }
+        option
+      }
+    }
+
+    def getValue(k: K): Option[V] = {
+      this.synchronized {
+        toMap.get(k)
+      }
+    }
+
+    def getKey(v: V): Option[K] = {
+      this.synchronized {
+        revMap.get(v)
+      }
+    }
+
+    def size: Int = {
+      toMap.size
+    }
+
+    def iterator: Iterator[(K, V)] = {
+      // The caller is expected to synchronize on this.
+      toMap.iterator
+    }
+
+    def replace(k1: K, v1: V, k2: K, v2: V): Unit = {
+      println(s"Replacing ($k1, $v1) => ($k2, $v2)")
+      this.synchronized {
+        val op1: Option[V] = toMap.get(k1)
+        assertTrue(op1.isDefined, s"The key $k1 is not defined")
+        val v1x: V = op1.get
+        assertTrue(v1x.equals(v1), s"The value for key $k1 is $v1x != expected value $v1")
+        toMap.remove(k1)
+        revMap.remove(v1)
+        toMap.put(k2, v2)
+        revMap.put(v2, k2)
+      }
+    }
+  }
+  // ex13: to test concurrently ConcurrentBiMap
+  val p = new ch2ex9and10.PriorityTaskPoolWithMultipleThreads(2, -1)
+  val m: ConcurrentBiMap[Int, Int] = new ConcurrentBiMap[Int, Int]()
+  println("Main(): submitting put() jobs ...")
+  // Be careful that each input number shall be used only once (either as key or as value).
+  Range(0, 20).reverse foreach { i => p.asynchronous(i)(
+    () => for {
+      j <- 0 until 20
+    } {
+      m.put(1000*j+i, 100000*j+i)
+    }
+  ) }
+  println("Main(): waiting for put() jobs to finish ...")
+  while (p.tasks.nonEmpty) {
+    Thread.sleep(1000)
+  }
+  println("Main(): submitting replace(k1,v1,v1,k1) jobs ...")
+  Range(0, 20).reverse foreach { i => p.asynchronous(i)(
+    () => for {
+      j <- 0 until 20
+    } {
+      m.replace(1000*j+i, 100000*j+i, 100000*j+i, 1000*j+i)
+    }
+  ) }
+  p.shutdown()
+  p.join()
+  println("After concurrent put() and replace(), ConcurrentBiMap now contain " + m.size + " records.")
 }
